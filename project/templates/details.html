@@ -1,57 +1,147 @@
-<h4>{{content.name}}</h4>
+<h4>{{ content.name }}</h4>
+
 {% if needs %}
-	<br>
-	Needs:
-	{% for need in needs %}
-		<br>
-		<a href="/n/{{need.id}}"><b>{{need.name}}</b></a>
-		<details>
-			<summary>
-				summary
-			</summary>
-			{{need.desc}}
-		</details>
-	{% endfor %}
+    <br>
+    <strong>Needs:</strong>
+    {% for need in needs %}
+        <h4>{{ need.name }}</h4>
+        <p>{{ need.desc }}</p>
+
+        <strong>Comments:</strong>
+        <ul>
+            {% for comment in need.comment_list %}
+                <li>{{ comment.content }} by {{ comment.user.username }}</li>
+            {% empty %}
+                <li>No comments for this need.</li>
+            {% endfor %}
+        </ul>
+    {% endfor %}
+{% else %}
+    <p>No needs available.</p>
 {% endif %}
-{% comment %}
-tasks {% endcomment %}
+
 {% if tasks %}
-	<br>
-	Tasks:
-	{% for task in tasks  %}
-		<b>{{task.name}}</b> added by {{task.created_by}}
-		<br>
-		<i>{{task.desc}}</i>
-		<br><br>
-	{% endfor %}
+    <br>
+    <strong>Tasks:</strong>
+    {% for task in tasks %}
+        <b>{{ task.name }}</b> added by {{ task.created_by }}
+        <br>
+        <i>{{ task.desc }}</i>
+        <br><br>
+    {% endfor %}
 {% endif %}
 <br>
 
-Comments:
-{% if comments %}
-{% include "comments.html" with comments=comments %}
-	{% else   %}
-	no comments
-{% endif %}
+<strong>Comments:</strong>
+<div class="comments-section" id="comments">
+    {% if comments %}
+        {% include "comments.html" with comments=comments %}
+    {% else %}
+        <p>No comments</p>
+    {% endif %}
+</div>
 
-<!-- backup -->
-	<!-- {% for comment in comments %}
-			<div style="margin-bottom: 20px;">
-					<strong>by:</strong><a href="/u/{{user.id}}"><i> {{ comment.user }}</i></a>
-					<br>
-					<p>{{ comment.content }}</p>
+<form id="add-comment-form" method="post">
+    {% csrf_token %}
+    <textarea name="content" placeholder="Add a comment..."></textarea>
+    <input type="hidden" name="to_project_id" value="{{ content.id }}">
+    <button type="submit">Submit</button>
+</form>
 
-					{% if comment.replies.all %}
-							<div style="margin-left: 20px; border-left: 1px solid #ccc; padding-left: 10px;">
-									<strong>Replies:</strong>
-									{% for reply in comment.replies.all %}
-											<div>
-													<strong>Reply by:</strong> {{ reply.user }}
-													<br>
-													<p>{{ reply.content }}</p>
-											</div>
-									{% endfor %}
-							</div>
-					{% endif %}
-			</div>
-	{% endfor %} -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Handle adding a new comment
+    const commentForm = document.getElementById("add-comment-form");
+    commentForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(commentForm);
+        const response = await fetch("/comments/add/", {
+            method: "POST",
+            body: formData,
+            headers: {
+                "X-CSRFToken": csrfToken,
+            },
+        });
+
+        if (response.ok) {
+            const newComment = await response.json();
+            const commentsContainer = document.getElementById("comments");
+            commentsContainer.insertAdjacentHTML(
+                "beforeend",
+                `
+                <div class="comment" data-comment-id="${newComment.id}">
+                    <strong>${newComment.user}</strong>: ${newComment.content}
+                    <button class="reply-btn" data-comment-id="${newComment.id}">Reply</button>
+                    <span>${newComment.total_replies} replies</span>
+                    <div class="replies-container" data-comment-id="${newComment.id}"></div>
+                </div>
+                `
+            );
+            commentForm.reset();
+        } else {
+            console.error("Failed to add comment.");
+        }
+    });
+
+    // Delegate click events for reply buttons and replies
+    document.addEventListener("click", async function (e) {
+        if (e.target.classList.contains("reply-btn")) {
+            const commentId = e.target.getAttribute("data-comment-id");
+            const container = document.querySelector(
+                `.replies-container[data-comment-id="${commentId}"]`
+            );
+
+            // Avoid adding duplicate reply forms
+            if (!container.querySelector("textarea")) {
+                const replyFormHTML = `
+                    <textarea placeholder="Write your reply..."></textarea>
+                    <button class="submit-reply-btn" data-comment-id="${commentId}">Submit</button>`;
+                container.innerHTML += replyFormHTML;
+            }
+        }
+
+        if (e.target.classList.contains("submit-reply-btn")) {
+            const commentId = e.target.getAttribute("data-comment-id");
+            const container = document.querySelector(
+                `.replies-container[data-comment-id="${commentId}"]`
+            );
+            const textarea = container.querySelector("textarea");
+            const content = textarea.value.trim();
+
+            if (!content) {
+                alert("Reply cannot be empty!");
+                return;
+            }
+
+            const response = await fetch("/comments/add/", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": csrfToken,
+                },
+                body: new URLSearchParams({ parent_id: commentId, content: content }),
+            });
+
+            if (response.ok) {
+                const newReply = await response.json();
+                container.insertAdjacentHTML(
+                    "beforeend",
+                    `
+                    <div class="comment" data-comment-id="${newReply.id}">
+                        <strong>${newReply.user}</strong>: ${newReply.content}
+                        <button class="reply-btn" data-comment-id="${newReply.id}">Reply</button>
+                        <div class="replies-container" data-comment-id="${newReply.id}"></div>
+                    </div>
+                    `
+                );
+                textarea.remove(); // Remove the reply textarea after submission
+            } else {
+                const error = await response.json();
+                console.error("Error:", error.error || "Failed to add reply.");
+            }
+        }
+    });
+});
+</script>
