@@ -12,10 +12,10 @@ class Comment(models.Model):
     to_project = models.ForeignKey(
         "project.Project", blank=True, null=True, on_delete=models.CASCADE, related_name="comments"
     )
+    to_need = models.ForeignKey(
+        "need.Need", blank=True, null=True, on_delete=models.CASCADE, related_name="comments"
+    )
     total_replies = models.PositiveIntegerField(default=0)  # Cache for replies count
-
-    def __str__(self):
-        return self.content[:20]
 
     def update_reply_count(self):
         """

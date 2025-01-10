@@ -19,22 +19,16 @@ def index(request):
 
 
 def project(request, project_id):
-    content = get_object_or_404(Project, pk=project_id)
-
-    # Get related needs
-    needs = content.need_set.all()  # Assuming a reverse relation from Project to Need
-
-    # Add comments for each need
-    for need in needs:
-        need.comment_list = Comment.objects.filter(to_need=need)
-
-    # Get project-level comments
-    comments = Comment.objects.filter(to_project=content)
+    """
+    Display the project details along with its needs and comments.
+    """
+    project = get_object_or_404(Project, pk=project_id)
+    needs = Need.objects.filter(to_project=project)  # Assuming `to_project` is the FK in Need
+    comments = project.comments.filter(parent__isnull=True)  # Top-level comments only
 
     context = {
-        "content": content,
+        "content": project,
         "needs": needs,
-        "tasks": content.task_set.all(),  # Assuming a reverse relation from Project to Task
         "comments": comments,
     }
-    return render(request, "details.html", context=context)
+    return render(request, "details.html", context)

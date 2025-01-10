@@ -24,28 +24,25 @@ def load_replies(request, comment_id):
     """
     Fetch replies dynamically for a specific comment.
     """
-    if request.method == "GET":
-        # Get the parent comment
-        parent_comment = get_object_or_404(Comment, id=comment_id)
+    parent_comment = get_object_or_404(Comment, id=comment_id)
+    replies = parent_comment.replies.select_related("user").all()
+    return JsonResponse({
+        "replies": [
+            {
+                "id": reply.id,
+                "content": reply.content,
+                "user": reply.user.username,
+                "total_replies": reply.total_replies,
+            }
+            for reply in replies
+        ]
+    })
 
-        # Fetch replies for the comment
-        replies = parent_comment.replies.select_related("user").all()
-
-        # Return the replies in JSON format
-        return JsonResponse({
-            "replies": [
-                {
-                    "id": reply.id,
-                    "content": reply.content,
-                    "user": reply.user.username,
-                    "total_replies": reply.total_replies,
-                }
-                for reply in replies
-            ]
-        })
-    return JsonResponse({"error": "Invalid request method"}, status=405)
 
 def add_comment(request):
+    """
+    Handle AJAX request to add a new comment or reply.
+    """
     if request.method == "POST":
         content = request.POST.get("content", "").strip()
         parent_id = request.POST.get("parent_id")
@@ -55,23 +52,23 @@ def add_comment(request):
             return JsonResponse({"error": "Content is required"}, status=400)
 
         parent_comment = None
+        to_project = None
+
+        # Handle replies
         if parent_id:
             parent_comment = get_object_or_404(Comment, id=parent_id)
 
+        # Handle top-level comments
         if to_project_id:
-            project = get_object_or_404(Project, id=to_project_id)
-            comment = Comment.objects.create(
-                user=request.user,
-                content=content,
-                parent=parent_comment,
-                to_project=project,
-            )
-        else:
-            comment = Comment.objects.create(
-                user=request.user,
-                content=content,
-                parent=parent_comment,
-            )
+            to_project = get_object_or_404(Project, id=to_project_id)
+
+        # Create the comment
+        comment = Comment.objects.create(
+            user=request.user,
+            content=content,
+            parent=parent_comment,
+            to_project=to_project,
+        )
 
         return JsonResponse({
             "id": comment.id,

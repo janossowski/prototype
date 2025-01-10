@@ -1,36 +1,18 @@
 <h4>{{ content.name }}</h4>
 
 {% if needs %}
-    <br>
     <strong>Needs:</strong>
-    {% for need in needs %}
-        <h4>{{ need.name }}</h4>
-        <p>{{ need.desc }}</p>
-
-        <strong>Comments:</strong>
-        <ul>
-            {% for comment in need.comment_list %}
-                <li>{{ comment.content }} by {{ comment.user.username }}</li>
-            {% empty %}
-                <li>No comments for this need.</li>
-            {% endfor %}
-        </ul>
-    {% endfor %}
+    <ul>
+        {% for need in needs %}
+            <li>
+                <strong>{{ need.name }}</strong>: {{ need.desc }}
+                <!-- Optionally add more fields or actions for each need -->
+            </li>
+        {% endfor %}
+    </ul>
 {% else %}
-    <p>No needs available.</p>
+    <p>No needs available for this project.</p>
 {% endif %}
-
-{% if tasks %}
-    <br>
-    <strong>Tasks:</strong>
-    {% for task in tasks %}
-        <b>{{ task.name }}</b> added by {{ task.created_by }}
-        <br>
-        <i>{{ task.desc }}</i>
-        <br><br>
-    {% endfor %}
-{% endif %}
-<br>
 
 <strong>Comments:</strong>
 <div class="comments-section" id="comments">
@@ -52,7 +34,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-    // Handle adding a new comment
+    // Handle adding a top-level comment
     const commentForm = document.getElementById("add-comment-form");
     commentForm.addEventListener("submit", async function (e) {
         e.preventDefault();
@@ -76,7 +58,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     <strong>${newComment.user}</strong>: ${newComment.content}
                     <button class="reply-btn" data-comment-id="${newComment.id}">Reply</button>
                     <span>${newComment.total_replies} replies</span>
-                    <div class="replies-container" data-comment-id="${newComment.id}"></div>
+                    <button class="view-replies-btn" data-comment-id="${newComment.id}">View Replies</button>
+                    <div class="replies-container" data-comment-id="${newComment.id}" style="display: none;"></div>
                 </div>
                 `
             );
@@ -86,7 +69,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Delegate click events for reply buttons and replies
+    // Delegate click events for reply buttons and reply submission
     document.addEventListener("click", async function (e) {
         if (e.target.classList.contains("reply-btn")) {
             const commentId = e.target.getAttribute("data-comment-id");
@@ -96,10 +79,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Avoid adding duplicate reply forms
             if (!container.querySelector("textarea")) {
-                const replyFormHTML = `
+                container.insertAdjacentHTML(
+                    "beforeend",
+                    `
                     <textarea placeholder="Write your reply..."></textarea>
-                    <button class="submit-reply-btn" data-comment-id="${commentId}">Submit</button>`;
-                container.innerHTML += replyFormHTML;
+                    <button class="submit-reply-btn" data-comment-id="${commentId}">Submit</button>
+                    `
+                );
             }
         }
 
@@ -132,16 +118,66 @@ document.addEventListener("DOMContentLoaded", function () {
                     <div class="comment" data-comment-id="${newReply.id}">
                         <strong>${newReply.user}</strong>: ${newReply.content}
                         <button class="reply-btn" data-comment-id="${newReply.id}">Reply</button>
-                        <div class="replies-container" data-comment-id="${newReply.id}"></div>
+                        <div class="replies-container" data-comment-id="${newReply.id}" style="display: none;"></div>
                     </div>
                     `
                 );
+
+                // Update total replies count dynamically
+                const replyCountSpan = document.querySelector(
+                    `.comment[data-comment-id="${commentId}"] span`
+                );
+                if (replyCountSpan) {
+                    const totalReplies = parseInt(replyCountSpan.textContent) || 0;
+                    replyCountSpan.textContent = `${totalReplies + 1} replies`;
+                }
+
                 textarea.remove(); // Remove the reply textarea after submission
             } else {
-                const error = await response.json();
-                console.error("Error:", error.error || "Failed to add reply.");
+                console.error("Failed to add reply.");
+            }
+        }
+
+        if (e.target.classList.contains("view-replies-btn")) {
+            const commentId = e.target.getAttribute("data-comment-id");
+            const container = document.querySelector(
+                `.replies-container[data-comment-id="${commentId}"]`
+            );
+
+            // Toggle visibility of replies
+            if (container.style.display === "none" || container.style.display === "") {
+                // Show replies
+                container.style.display = "block";
+                e.target.textContent = "Hide Replies";
+
+                // Load replies dynamically if not already loaded
+                if (container.innerHTML === "") {
+                    const response = await fetch(`/comments/load-replies/${commentId}/`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        data.replies.forEach((reply) => {
+                            container.insertAdjacentHTML(
+                                "beforeend",
+                                `
+                                <div class="comment" data-comment-id="${reply.id}">
+                                    <strong>${reply.user}</strong>: ${reply.content}
+                                    <button class="reply-btn" data-comment-id="${reply.id}">Reply</button>
+                                    <div class="replies-container" data-comment-id="${reply.id}" style="display: none;"></div>
+                                </div>
+                                `
+                            );
+                        });
+                    } else {
+                        console.error("Failed to load replies.");
+                    }
+                }
+            } else {
+                // Hide replies
+                container.style.display = "none";
+                e.target.textContent = "View Replies";
             }
         }
     });
 });
+
 </script>

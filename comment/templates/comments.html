@@ -4,7 +4,8 @@
     <br>
     <button class="reply-btn" data-comment-id="{{ comment.id }}">Reply</button>
     <span>{{ comment.total_replies }} replies</span>
-    <div class="replies-container" data-comment-id="{{ comment.id }}">
+    <button class="view-replies-btn" data-comment-id="{{ comment.id }}">View Replies</button>
+    <div class="replies-container" data-comment-id="{{ comment.id }}" style="display: none;">
         {% include "comments.html" with comments=comment.replies.all %}
     </div>
 </div>
