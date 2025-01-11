@@ -4,6 +4,7 @@ from .models import Comment
 from project.models import Project
 from task.models import Task
 from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
 
 
 def comment_list_view(request, object_type, object_id):
@@ -40,9 +41,6 @@ def load_replies(request, comment_id):
 
 
 def add_comment(request):
-    """
-    Handle AJAX request to add a new comment or reply.
-    """
     if request.method == "POST":
         content = request.POST.get("content", "").strip()
         parent_id = request.POST.get("parent_id")
@@ -62,9 +60,12 @@ def add_comment(request):
         if to_project_id:
             to_project = get_object_or_404(Project, id=to_project_id)
 
+        # Allow anonymous users
+        user = request.user if request.user.is_authenticated else None
+
         # Create the comment
         comment = Comment.objects.create(
-            user=request.user,
+            user=user,
             content=content,
             parent=parent_comment,
             to_project=to_project,
@@ -73,8 +74,9 @@ def add_comment(request):
         return JsonResponse({
             "id": comment.id,
             "content": comment.content,
-            "user": comment.user.username,
+            "user": comment.user.username if comment.user else "Anonymous",
             "total_replies": comment.total_replies,
         })
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
+    

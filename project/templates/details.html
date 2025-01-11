@@ -34,7 +34,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-    // Handle adding a top-level comment
+    // Handle top-level comment submission
     const commentForm = document.getElementById("add-comment-form");
     commentForm.addEventListener("submit", async function (e) {
         e.preventDefault();
@@ -57,20 +57,22 @@ document.addEventListener("DOMContentLoaded", function () {
                 <div class="comment" data-comment-id="${newComment.id}">
                     <strong>${newComment.user}</strong>: ${newComment.content}
                     <button class="reply-btn" data-comment-id="${newComment.id}">Reply</button>
-                    <span>${newComment.total_replies} replies</span>
                     <button class="view-replies-btn" data-comment-id="${newComment.id}">View Replies</button>
+                    <span>${newComment.total_replies} replies</span>
                     <div class="replies-container" data-comment-id="${newComment.id}" style="display: none;"></div>
                 </div>
                 `
             );
             commentForm.reset();
         } else {
-            console.error("Failed to add comment.");
+            const error = await response.json();
+            console.error("Error:", error.error || "Failed to add comment.");
         }
     });
 
-    // Delegate click events for reply buttons and reply submission
+    // Delegate click events for reply buttons, view/hide replies, and reply submission
     document.addEventListener("click", async function (e) {
+        // Show reply form
         if (e.target.classList.contains("reply-btn")) {
             const commentId = e.target.getAttribute("data-comment-id");
             const container = document.querySelector(
@@ -86,9 +88,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     <button class="submit-reply-btn" data-comment-id="${commentId}">Submit</button>
                     `
                 );
+                container.style.display = "block"; // Ensure the container is visible
             }
         }
 
+        // Handle submitting a reply
         if (e.target.classList.contains("submit-reply-btn")) {
             const commentId = e.target.getAttribute("data-comment-id");
             const container = document.querySelector(
@@ -134,17 +138,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 textarea.remove(); // Remove the reply textarea after submission
             } else {
-                console.error("Failed to add reply.");
+                const error = await response.json();
+                console.error("Error:", error.error || "Failed to add reply.");
             }
         }
 
+        // Handle "View Replies" button click
         if (e.target.classList.contains("view-replies-btn")) {
             const commentId = e.target.getAttribute("data-comment-id");
             const container = document.querySelector(
                 `.replies-container[data-comment-id="${commentId}"]`
             );
 
-            // Toggle visibility of replies
             if (container.style.display === "none" || container.style.display === "") {
                 // Show replies
                 container.style.display = "block";

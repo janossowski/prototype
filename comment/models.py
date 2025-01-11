@@ -1,25 +1,28 @@
 from django.db import models
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
+from django.conf import settings
 
 
 class Comment(models.Model):
     content = models.TextField("description")
     parent = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.CASCADE, related_name="replies"
-    )  # Self-referential ForeignKey for nested replies
-    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, db_index=True)
+    )  # Self-referential ForeignKey for replies
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, db_index=True
+    )  # Allow null for anonymous users
     to_project = models.ForeignKey(
-        "project.Project", blank=True, null=True, on_delete=models.CASCADE, related_name="comments"
-    )
-    to_need = models.ForeignKey(
-        "need.Need", blank=True, null=True, on_delete=models.CASCADE, related_name="comments"
+        "project.Project", null=True, blank=True, on_delete=models.CASCADE, related_name="comments"
     )
     total_replies = models.PositiveIntegerField(default=0)  # Cache for replies count
 
+    def __str__(self):
+        return f"{self.content[:20]} by {self.user.username if self.user else 'Anonymous'}"
+
     def update_reply_count(self):
         """
-        Recursively update the total_replies count of all parent comments.
+        Recursively update the total_replies count for parent comments.
         """
         comment = self
         while comment:
@@ -31,17 +34,11 @@ class Comment(models.Model):
 # Signals to update `total_replies` automatically
 @receiver(post_save, sender=Comment)
 def update_replies_on_save(sender, instance, created, **kwargs):
-    """
-    Update the reply count for the parent comment when a new comment is saved.
-    """
     if created and instance.parent:
         instance.parent.update_reply_count()
 
 
 @receiver(post_delete, sender=Comment)
 def update_replies_on_delete(sender, instance, **kwargs):
-    """
-    Update the reply count for the parent comment when a comment is deleted.
-    """
     if instance.parent:
         instance.parent.update_reply_count()
